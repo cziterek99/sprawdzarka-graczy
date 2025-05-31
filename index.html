@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprawdzarka Graczy</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      color: white;
+      background: black;
+    }
+    .ui {
+      position: relative;
+      z-index: 1;
+      padding: 20px;
+      text-align: center;
+    }
+    .search-box {
+      margin-top: 20px;
+    }
+    .counters, .payment, footer {
+      margin-top: 20px;
+    }
+    .rules-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 5px 10px;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.7);
+    }
+    .modal-content {
+      background-color: #222;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 600px;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+    }
+    .modal-content p {
+      text-align: left;
+    }
+    .modal-content .close {
+      float: right;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    a {
+      color: #ff9933;
+    }
+  </style>
+</head>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<body>
+  <div id="container" touch-action="none"></div>
+
+  <div class="ui">
+    <button id="rulesBtn" class="rules-button">Regulamin</button>
+
+    <h1>Sprawdzarka Graczy</h1>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Wpisz nick gracza..." />
+      <button id="searchBtn">Szukaj</button>
+    </div>
+    <p id="result"></p>
+    <button id="copyBtn" style="display:none;">Kopiuj IP</button>
+
+    <div class="counters">
+      <p>Wyszukiwań: <span id="searchCount">0</span></p>
+      <p>Użytkowników online: <span id="onlineUsers">0</span></p>
+    </div>
+
+    <div class="payment">
+      <p>Dostep do nieskonczonego szukania 2zł/dzień, 10 zł/miesiąc. <a href="https://discord.com/invite/AM9RWrTree" target="_blank">Zakup na Discord</a></p>
+    </div>
+  
+  <!-- Przyciski wsparcia -->
+  <div class="support-buttons">
+    <a class="support-btn discord" href="https://discord.com/invite/AM9RWrTree" target="_blank">
+      <i class="fab fa-discord"></i> <span>Zakup</span>
+    </a>
+    <a class="support-btn donate" href="https://tipply.pl/u/cziterek99" target="_blank">
+      <i class="fas fa-hand-holding-usd"></i> <span>Wsparcie</span>
+    </a>
+  </div>
+</div>
+
+
+
+
+
+  <!-- Modal Regulaminu -->
+  <div id="rulesModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="rulesClose">&times;</span>
+      <h2>Regulamin</h2>
+      <p>
+        Zabrania się używania tej strony do działań nielegalnych, zastraszania, stalkingu, nękania innych osób, naruszania dóbr osobistych, przetwarzania danych osobowych bez zgody właściciela.<br><br>
+        Nie wolno wykorzystywać tej strony w sposób sprzeczny z przepisami prawa, w tym ustawą o ochronie danych osobowych, RODO, oraz innymi przepisami prawa lokalnego, krajowego i międzynarodowego.<br><br>
+        Właściciel strony oraz strona nie ponoszą odpowiedzialności za jakiekolwiek skutki wykorzystania danych dostępnych na stronie. Użytkownik ponosi pełną odpowiedzialność za swoje działania.<br><br>
+        Korzystając ze strony, akceptujesz powyższe zasady.
+      </p>
+    </div>
+  </div>
+
+<div id="ipModal" class="modal">
+  <div class="modal-content">
+    <span class="close" id="ipClose">&times;</span>
+    <h2>Adres IP</h2>
+    <p id="ipContent"></p>
+    <button id="copyIpBtn">Kopiuj IP</button>
+  </div>
+</div>
+
+<div class="ui">
+  <!-- zawartość UI -->
+</div>
+
+<footer>
+  <p>Disclaimer: Właściciel strony oraz strona nie ponoszą odpowiedzialności...</p>
+</footer>
+
+
+  <!-- Three.js Shader Effect -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/88/three.min.js"></script>
+  <script id="vertexShader" type="x-shader/x-vertex">
+    void main() { gl_Position = vec4( position, 1.0 ); }
+  </script>
+  <script id="fragmentShader" type="x-shader/x-fragment">
+    uniform vec2 u_resolution;
+    uniform vec2 u_mouse;
+    uniform float u_time;
+    uniform sampler2D u_noise;
+    uniform sampler2D u_buffer;
+    uniform bool u_renderpass;
+    const float blurMultiplier = 0.95;
+    const float circleSize = .25;
+    const float blurStrength = .98;
+    const float threshold = .5;
+    const float scale = 4.;
+    vec2 hash2(vec2 p) { vec2 o = texture2D(u_noise, (p+0.5)/256.0, -100.0).xy; return o; }
+    vec3 hsb2rgb(in vec3 c) { vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0); rgb = rgb*rgb*(3.0-2.0*rgb); return c.z * mix(vec3(1.0), rgb, c.y); }
+    vec3 domain(vec2 z) { return vec3(hsb2rgb(vec3(atan(z.y,z.x)/6.283185307179586,1.,1.))); }
+    vec3 hash33(vec3 p){ float n = sin(dot(p, vec3(7,157,113))); return fract(vec3(2097152,262144,32768)*n); }
+    const int samples = 8;
+    const float sigma = float(samples) * 0.25;
+    float gaussian(vec2 i) { return 1.0 / (6.283185307179586 * (sigma*sigma)) * exp(-((i.x*i.x + i.y*i.y) / (2.0 * (sigma*sigma)))); }
+    vec3 blur(sampler2D sp, vec2 uv, vec2 scale) { vec3 col = vec3(0.0); float accum = 0.0; float weight; vec2 offset; for (int x = -samples / 2; x < samples / 2; ++x) { for (int y = -samples / 2; y < samples / 2; ++y) { offset = vec2(x, y); weight = gaussian(offset); col += texture2D(sp, uv + scale * offset).rgb * weight; accum += weight; } } return col / accum; }
+    void main() { vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y; uv *= scale; vec2 mouse = u_mouse * scale; vec2 ps = vec2(1.0) / u_resolution.xy; vec2 sample = gl_FragCoord.xy / u_resolution.xy; vec2 o = mouse*.2+vec2(.65, .5); float d = .98; sample = d * (sample - o); sample += o; sample += vec2(sin((u_time+uv.y*.5)*10.)*.001, -.00); vec3 fragcolour; vec4 tex; if(u_renderpass) { tex = vec4(blur(u_buffer, sample, ps*blurStrength) * blurMultiplier, 1.); float df = length(mouse - uv); fragcolour = vec3(smoothstep(circleSize, 0., df)); } else { tex = texture2D(u_buffer, sample, 2.) * .98; tex = vec4( smoothstep(0.0, threshold - fwidth(tex.x), tex.x), smoothstep(0.2, threshold - fwidth(tex.y) + .2, tex.y), smoothstep(-0.05, threshold - fwidth(tex.z) - .2, tex.z), 1.); vec3 n = hash33(vec3(uv, u_time*.1)); tex.rgb += n * .2 - .1; } gl_FragColor = vec4(fragcolour,1.0); gl_FragColor += tex; }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/88/three.min.js"></script>
+  <script id="vertexShader" type="x-shader/x-vertex">
+    void main() {
+        gl_Position = vec4( position, 1.0 );
+    }
+  </script>
+  <script id="fragmentShader" type="x-shader/x-fragment">
+    uniform vec2 u_resolution;
+    uniform vec2 u_mouse;
+    uniform float u_time;
+    uniform sampler2D u_noise;
+    uniform sampler2D u_buffer;
+    uniform bool u_renderpass;
+    const float blurMultiplier = 0.95;
+    const float circleSize = .25;
+    const float blurStrength = .98;
+    const float threshold = .5;
+    const float scale = 4.;
+    #define PI 3.141592653589793
+    #define TAU 6.283185307179586
+    vec2 hash2(vec2 p) { vec2 o = texture2D(u_noise, (p+0.5)/256.0, -100.0).xy; return o; }
+    vec3 hsb2rgb(in vec3 c) { vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0); rgb = rgb*rgb*(3.0-2.0*rgb); return c.z * mix(vec3(1.0), rgb, c.y); }
+    vec3 domain(vec2 z) { return vec3(hsb2rgb(vec3(atan(z.y,z.x)/TAU,1.,1.))); }
+    vec3 hash33(vec3 p){ float n = sin(dot(p, vec3(7, 157, 113))); return fract(vec3(2097152, 262144, 32768)*n); }
+    const int samples = 8;
+    const float sigma = float(samples) * 0.25;
+    float gaussian(vec2 i) { return 1.0 / (2.0 * PI * (sigma*sigma)) * exp(-((i.x*i.x + i.y*i.y) / (2.0 * (sigma*sigma)))); }
+    vec3 blur(sampler2D sp, vec2 uv, vec2 scale) { vec3 col = vec3(0.0); float accum = 0.0; float weight; vec2 offset; for (int x = -samples / 2; x < samples / 2; ++x) { for (int y = -samples / 2; y < samples / 2; ++y) { offset = vec2(x, y); weight = gaussian(offset); col += texture2D(sp, uv + scale * offset).rgb * weight; accum += weight; } } return col / accum; }
+    void main() { vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y; uv *= scale; vec2 mouse = u_mouse * scale; vec2 ps = vec2(1.0) / u_resolution.xy; vec2 sample = gl_FragCoord.xy / u_resolution.xy; vec2 o = mouse*.2+vec2(.65, .5); float d = .98; sample = d * (sample - o); sample += o; sample += vec2(sin((u_time+uv.y * .5)*10.)*.001, -.00); vec3 fragcolour; vec4 tex; if(u_renderpass) { tex = vec4(blur(u_buffer, sample, ps*blurStrength) * blurMultiplier, 1.); float df = length(mouse - uv); fragcolour = vec3( smoothstep( circleSize, 0., df ) ); } else { tex = texture2D(u_buffer, sample, 2.) * .98; tex = vec4( smoothstep(0.0, threshold - fwidth(tex.x), tex.x), smoothstep(0.2, threshold - fwidth(tex.y) + .2, tex.y), smoothstep(-0.05, threshold - fwidth(tex.z) - .2, tex.z), 1.); vec3 n = hash33(vec3(uv, u_time*.1)); tex.rgb += n * .2 - .1; } gl_FragColor = vec4(fragcolour,1.0); gl_FragColor += tex; }
+  </script>
+  <script>
+    let container, camera, scene, renderer, uniforms;
+    let divisor = 1 / 10;
+    let newmouse = { x: 0, y: 0 };
+    let loader = new THREE.TextureLoader();
+    let texture, rtTexture, rtTexture2;
+    loader.setCrossOrigin("anonymous");
+    loader.load('https://s3-us-west-2.amazonaws.com/s.cdpn.io/982762/noise.png', function (tex) {
+      texture = tex;
+      texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.minFilter = THREE.LinearFilter; init(); animate();
+    });
+    function init() {
+      container = document.getElementById('container');
+      camera = new THREE.Camera(); camera.position.z = 1;
+      scene = new THREE.Scene();
+      var geometry = new THREE.PlaneBufferGeometry(2, 2);
+      rtTexture = new THREE.WebGLRenderTarget(window.innerWidth * .2, window.innerHeight * .2);
+      rtTexture2 = new THREE.WebGLRenderTarget(window.innerWidth * .2, window.innerHeight * .2);
+      uniforms = { u_time: { type: "f", value: 1.0 }, u_resolution: { type: "v2", value: new THREE.Vector2() }, u_noise: { type: "t", value: texture }, u_buffer: { type: "t", value: rtTexture.texture }, u_mouse: { type: "v2", value: new THREE.Vector2() }, u_renderpass: { type: 'b', value: false } };
+      var material = new THREE.ShaderMaterial({ uniforms: uniforms, vertexShader: document.getElementById('vertexShader').textContent, fragmentShader: document.getElementById('fragmentShader').textContent });
+      material.extensions.derivatives = true;
+      var mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+      onWindowResize(); window.addEventListener('resize', onWindowResize, false);
+      document.addEventListener('pointermove', e => { let ratio = window.innerHeight / window.innerWidth; newmouse.x = (e.pageX - window.innerWidth / 2) / window.innerWidth / ratio; newmouse.y = (e.pageY - window.innerHeight / 2) / window.innerHeight * -1; e.preventDefault(); });
+    }
+    function onWindowResize() { renderer.setSize(window.innerWidth, window.innerHeight); uniforms.u_resolution.value.x = renderer.domElement.width; uniforms.u_resolution.value.y = renderer.domElement.height; rtTexture = new THREE.WebGLRenderTarget(window.innerWidth * .2, window.innerHeight * .2); rtTexture2 = new THREE.WebGLRenderTarget(window.innerWidth * .2, window.innerHeight * .2); }
+    function animate(delta) { requestAnimationFrame(animate); render(delta); }
+    function renderTexture(delta) { let odims = uniforms.u_resolution.value.clone(); uniforms.u_resolution.value.x = window.innerWidth * .2; uniforms.u_resolution.value.y = window.innerHeight * .2; uniforms.u_buffer.value = rtTexture2.texture; uniforms.u_renderpass.value = true; renderer.setRenderTarget(rtTexture); renderer.render(scene, camera, rtTexture, true); let buffer = rtTexture; rtTexture = rtTexture2; rtTexture2 = buffer; uniforms.u_buffer.value = rtTexture.texture; uniforms.u_resolution.value = odims; uniforms.u_renderpass.value = false; }
+    function render(delta) { uniforms.u_mouse.value.x += (newmouse.x - uniforms.u_mouse.value.x) * divisor; uniforms.u_mouse.value.y += (newmouse.y - uniforms.u_mouse.value.y) * divisor; uniforms.u_time.value = delta * 0.0005; renderer.render(scene, camera); renderTexture(); }
+
+    const rulesBtn = document.getElementById("rulesBtn");
+    const rulesModal = document.getElementById("rulesModal");
+    const rulesClose = document.getElementById("rulesClose");
+    rulesBtn.onclick = () => rulesModal.style.display = "block";
+    rulesClose.onclick = () => rulesModal.style.display = "none";
+    window.onclick = e => { if (e.target == rulesModal) rulesModal.style.display = "none"; };
+  </script>
+
+  <script src="playerData.js"></script>
+  <script src="ignoredPlayers.js"></script>
+  <script src="script.js"></script>
+
+</body>
+ 
+
+ <!-- Firebase Setup -->
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqsyI55C9mF964odv4TETF6hyNkb4rMfI",
+      authDomain: "wyszukiwarka-57c91.firebaseapp.com",
+      databaseURL: "https://wyszukiwarka-57c91-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "wyszukiwarka-57c91",
+      storageBucket: "wyszukiwarka-57c91.appspot.com",
+      messagingSenderId: "2706589064",
+      appId: "1:2706589064:web:59892718addfb652a7663d"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const searchRef = db.ref("searchCount");
+    const onlineRef = db.ref("onlineUsers");
+    document.getElementById("searchBtn").addEventListener("click", () => { searchRef.transaction(n => (n || 0) + 1); });
+    searchRef.on("value", snap => { document.getElementById("searchCount").textContent = snap.val() || 0; });
+    onlineRef.on("value", snap => { document.getElementById("onlineUsers").textContent = snap.val() || 0; });
+// Połączenie użytkownika
+const myConnection = db.ref("connections").push();
+myConnection.set(true);
+myConnection.onDisconnect().remove();
+
+// Liczenie aktualnych połączeń
+db.ref("connections").on("value", snap => {
+  document.getElementById("onlineUsers").textContent = snap.numChildren() || 0;
+});
+
+  </script>
+
+</body>
+
+</html>
